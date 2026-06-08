@@ -1,10 +1,16 @@
 require("dotenv").config();
+const express = require("express");
 const { Telegraf } = require("telegraf");
 const { handleModeration } = require("./moderation/moderator");
 const { handleFun } = require("./handlers/fun");
 const { mafiaStart, handleMafiaCallback } = require("./games/mafia");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(bot.webhookCallback("/webhook"));
 
 // ─── Moderatsiya middleware ───────────────────────────────────
 bot.use(async (ctx, next) => {
@@ -91,9 +97,12 @@ bot.catch((err, ctx) => {
 });
 
 // ─── Ishga tushirish ──────────────────────────────────────────
-bot.launch().then(() => {
-  console.log(`✅ Bot ishga tushdi: @${bot.botInfo?.username}`);
+app.listen(PORT, async () => {
+  console.log(`🚀 Server http://localhost:${PORT} da ishga tushdi`);
+  
+  await bot.telegram.setWebhook(`${process.env.WEBHOOK_URL || `http://localhost:${PORT}`}/webhook`);
+  console.log(`✅ Bot webhook orqali ulanmoqda: @${bot.botInfo?.username}`);
 });
 
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+process.once("SIGINT", () => process.exit(0));
+process.once("SIGTERM", () => process.exit(0));
