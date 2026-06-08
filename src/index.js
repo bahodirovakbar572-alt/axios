@@ -1,20 +1,31 @@
 require("dotenv").config();
-const express = require("express");
 const { Telegraf } = require("telegraf");
+const express = require("express"); // Render Web Service uchun shart!
 const { handleModeration } = require("./moderation/moderator");
 const { handleFun } = require("./handlers/fun");
 const { mafiaStart, handleMafiaCallback } = require("./games/mafia");
 
+if (!process.env.BOT_TOKEN) {
+  console.error("❌ Xatolik: .env faylda BOT_TOKEN topilmadi!");
+  process.exit(1);
+}
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000; // Render o'zi avtomat port taqdim etadi
 
-app.use(express.json());
-app.use(bot.webhookCallback("/webhook"));
+// ─── Render Port Scan'dan o'tish uchun HTTP yo'lak ────────────
+app.get("/", (req, res) => {
+  res.send({
+    status: "online",
+    message: "Admin Bot muvaffaqiyatli ishlayapti!",
+    timestamp: new Date()
+  });
+});
 
-// ─── Moderatsiya middleware ───────────────────────────────────
+// ─── Moderatsiya middleware (Matn va Caption tekshiruvi) ──────
 bot.use(async (ctx, next) => {
-  if (ctx.message?.text) {
+  if (ctx.message?.text || ctx.message?.caption) {
     await handleModeration(ctx, next);
   } else {
     return next();
@@ -32,10 +43,10 @@ bot.on("callback_query", async (ctx) => {
   ) {
     return handleMafiaCallback(ctx);
   }
-  await ctx.answerCbQuery();
+  await ctx.answerCbQuery().catch(() => {});
 });
 
-// ─── Fun commands ─────────────────────────────────────────────
+// ─── Ko'ngilochar buyruqlar (Hammasi joyida) ──────────────────
 bot.command("8ball", handleFun);
 bot.command("fortune", handleFun);
 bot.command("love", handleFun);
@@ -44,65 +55,69 @@ bot.command("dice", handleFun);
 bot.command("flip", handleFun);
 bot.command("rate", handleFun);
 
-// ─── Mafia ────────────────────────────────────────────────────
+// ─── Mafia buyrug'i ───────────────────────────────────────────
 bot.command("mafia", mafiaStart);
 
-// ─── /help ────────────────────────────────────────────────────
+// ─── /help (To'liq ro'yxat HTML formatda) ──────────────────────
 bot.command("help", (ctx) => {
   ctx.reply(
-    `🤖 *Admin Bot — Buyruqlar*\n
-🛡️ *Moderatsiya (avtomatik)*
-• So'kinishlar — xabar o'chiriladi
-• Oila so'kinishi — doimiy mute
-• Reklama — ban
-
-🎮 *Mafia O'yini*
-/mafia — o'yin yaratish
-Qo'shilish va barcha harakatlar knopkalar orqali!
-
-Rollar: 🔫 Mafia • 🕵️ Detektiv • 👨‍⚕️ Shifokor
-        🛡️ Bodyguard • 👑 Mayor • 🔪 Maniac • 👤 Aholi
-
-🎉 *Ko'ngilochar*
-/8ball [savol] — sehrli shar
-/fortune — kunlik taqdir
-/love @ism1 @ism2 — sevgi o'lchagich
-/whoami — bugungi shaxsiyat
-/dice [son] — zar tashlash
-/flip — tanga tashlash
-/rate [narsa] — narsa baholash`,
-    { parse_mode: "Markdown" }
+    `🤖 <b>Admin Bot — Buyruqlar</b>\n\n` +
+    `🛡️ <b>Moderatsiya (avtomatik)</b>\n` +
+    `• So'kinishlar — xabar o'chiriladi\n` +
+    `• Oila so'kinishi — doimiy mute\n` +
+    `• Reklama — ban\n\n` +
+    `🎮 <b>Mafia O'yini</b>\n` +
+    `/mafia — o'yin yaratish\n` +
+    `Qo'shilish va barcha harakatlar knopkalar orqali!\n\n` +
+    `Rollar: 🔫 Mafia • 🕵️ Detektiv • 👨‍⚕️ Shifokor\n` +
+    `        🛡️ Bodyguard • 👑 Mayor • 🔪 Maniac • 👤 Aholi\n\n` +
+    `🎉 <b>Ko'ngilochar</b>\n` +
+    `/8ball [savol] — sehrli shar\n` +
+    `/fortune — kunlik taqdir\n` +
+    `/love @ism1 @ism2 — sevgi o'lchagich\n` +
+    `/whoami — bugungi shaxsiyat\n` +
+    `/dice [son] — zar tashlash\n` +
+    `/flip — tanga tashlash\n` +
+    `/rate [narsa] — narsa baholash`,
+    { parse_mode: "HTML" }
   );
 });
 
-// ─── /start ───────────────────────────────────────────────────
+// ─── /start (Guruh va shaxsiy chat uchun tekshiruv bilan) ─────
 bot.start((ctx) => {
   const isGroup = ctx.chat.type === "group" || ctx.chat.type === "supergroup";
+  // HTML xatolik bermasligi uchun ismdagi maxsus belgilarni tozalaymiz
+  const name = ctx.from?.first_name ? ctx.from.first_name.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "Foydalanuvchi";
+  
   if (isGroup) {
     ctx.reply(
-      `👋 Salom! Men *Admin Bot*man.\n\nAdmin qiling — moderatsiya va o'yinlar tayyor!\n\n/help — barcha buyruqlar`,
-      { parse_mode: "Markdown" }
+      `👋 Salom! Men <b>Admin Bot</b>man.\n\nAdmin qiling — moderatsiya va o'yinlar tayyor!\n\n/help — barcha buyruqlar`,
+      { parse_mode: "HTML" }
     );
   } else {
     ctx.reply(
-      `👋 Salom, *${ctx.from.first_name}*!\n\nMeni guruhingizga qo'shing va admin qiling 🚀\n\n/help — barcha buyruqlar`,
-      { parse_mode: "Markdown" }
+      `👋 Salom, <b>${name}</b>!\n\nMeni guruhingizga qo'shing va admin qiling 🚀\n\n/help — barcha buyruqlar`,
+      { parse_mode: "HTML" }
     );
   }
 });
 
-// ─── Xatolarni ushlab qolish ──────────────────────────────────
+// ─── Global xatoliklarni ushlab qolish ─────────────────────────
 bot.catch((err, ctx) => {
-  console.error(`Bot xatosi [${ctx.updateType}]:`, err.message);
+  console.error(`❌ Bot xatosi [${ctx.updateType}]:`, err);
 });
 
-// ─── Ishga tushirish ──────────────────────────────────────────
-app.listen(PORT, async () => {
-  console.log(`🚀 Server http://localhost:${PORT} da ishga tushdi`);
+// ─── Server va Botni birgalikda ishga tushirish ───────────────
+app.listen(PORT, () => {
+  console.log(`🚀 HTTP Server Render portida ochildi: port ${PORT}`);
   
-  await bot.telegram.setWebhook(`${process.env.WEBHOOK_URL || `http://localhost:${PORT}`}/webhook`);
-  console.log(`✅ Bot webhook orqali ulanmoqda: @${bot.botInfo?.username}`);
+  bot.launch().then(async () => {
+    const botSelf = await bot.telegram.getMe().catch(() => ({ username: "Unknown" }));
+    console.log(`✅ Bot muvaffaqiyatli ishga tushdi: @${botSelf.username}`);
+  }).catch((err) => {
+    console.error("💥 Botni Telegramga ulashda xatolik yuz berdi:", err);
+  });
 });
 
-process.once("SIGINT", () => process.exit(0));
-process.once("SIGTERM", () => process.exit(0));
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
